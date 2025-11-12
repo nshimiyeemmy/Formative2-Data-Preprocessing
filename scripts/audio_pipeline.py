@@ -13,7 +13,7 @@ class AudioPipeline:
         # Save outputs in the existing 'dataset' folder
         self.output_dir = r"C:\Users\PC\Documents\Formative2-Data-Preprocessing\dataset"
 
-    # -------------------- VISUALIZATIONS --------------------  
+    # VISUALIZATIONS  
     def load_and_visualize_audio(self, audio_path, save_viz=True):
         """Load audio and create waveform and spectrogram"""
         audio, sr = librosa.load(audio_path, sr=self.sample_rate)
@@ -50,7 +50,7 @@ class AudioPipeline:
             print(f"  ✓ Visualizations saved for {filename}")
         return audio, sr
 
-    # -------------------- AUGMENTATIONS --------------------
+    #  AUGMENTATIONS 
     def pitch_shift(self, audio, n_steps):
         return librosa.effects.pitch_shift(audio, sr=self.sample_rate, n_steps=n_steps)
 
@@ -104,7 +104,7 @@ class AudioPipeline:
 
         return augmentations
 
-    # -------------------- FEATURE EXTRACTION --------------------
+    #  FEATURE EXTRACTION 
     def extract_audio_features(self, audio_path):
         audio, sr = librosa.load(audio_path, sr=self.sample_rate)
         features = {
@@ -160,7 +160,7 @@ class AudioPipeline:
 
         return features
 
-    # -------------------- MAIN PIPELINE --------------------
+    #  MAIN PIPELINE
     def process_all_audio(self, audio_input_dir, create_visualizations=True, create_augmentations=True):
         print("AUDIO PROCESSING PIPELINE")
 
@@ -264,7 +264,7 @@ class AudioPipeline:
 
         return df
 
-# -------------------- MAIN FUNCTION --------------------
+# MAIN FUNCTION
 def main():
     audio_input_dir = r"C:\Users\PC\Documents\Formative2-Data-Preprocessing\dataset\audios"
     
