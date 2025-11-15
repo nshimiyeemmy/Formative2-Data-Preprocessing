@@ -134,11 +134,7 @@ Each member records **2 audio samples** saying:
   - Model training  
   - Evaluation results  
 
-# 👥 Team Contributions
-task1: Emmy Nshimiye
-Task2: Tracy Umukunzi
-Task3: Carine Ahishakiye
-Task4: Eva Nice 
+
 
 
 
