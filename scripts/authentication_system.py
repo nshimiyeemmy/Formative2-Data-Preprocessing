@@ -84,8 +84,8 @@ def extract_face_features_from_file(image_path):
         row = df[mask]
 
         if row.empty:
-            print(f" No feature row found for image file: {basename}")
-            print("   Make sure you're using one of the training images.")
+            # print(f" ACCESS DENIED! to : {basename}")
+            print("   You're not authorized! Please try again.")
             return None
 
         # Drop the same non-feature columns as in train_face_model.py
@@ -180,7 +180,7 @@ def extract_voice_features_from_file(audio_path):
         feature_row = feature_row.select_dtypes(include=[np.number])
 
         features = feature_row.iloc[0].values
-        print(f" Voice features loaded from CSV for {basename}: {features.shape[0]} dimensions")
+        # print(f" Voice features loaded from CSV for {basename}: {features.shape[0]} dimensions")
         return features
 
     except Exception as e:
@@ -315,7 +315,7 @@ def run_interactive(models):
         voice_f = extract_voice_features_from_file(audio_path)
 
         if face_f is None or voice_f is None:
-            print(" Error in input files. Try again.")
+            print(" User not found!")
             continue
 
                 # Build customer feature vector in the SAME way as product model training
