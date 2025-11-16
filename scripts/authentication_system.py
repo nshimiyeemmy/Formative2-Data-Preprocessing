@@ -46,60 +46,147 @@ def get_available_users():
 # FEATURE EXTRACTION FUNCTIONS
 # ====================================================================
 
-def extract_face_features_from_file(image_path, models):
-    """Extract face features and match the model's expected input size."""
+import os
+import numpy as np
+import pandas as pd
+
+def extract_face_features_from_file(image_path):
+    """
+    Instead of recomputing features from the raw image,
+    we look up the precomputed feature vector in image_features.csv
+    based on the file name (e.g. 'tracy_neutral.jpg').
+
+    This guarantees the features match exactly what the face model
+    was trained on (same columns, same dimension).
+    """
     try:
-        img = cv2.imread(image_path)
-        if img is None:
-            raise ValueError(f"Could not load image: {image_path}")
+        # Load the precomputed features
+        df = pd.read_csv("Face_Recognition/image_features.csv")
 
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img_resized = cv2.resize(img_rgb, (128, 128))
+        # Get just the file name from the path
+        basename = os.path.basename(image_path)
 
-        # Training used 256 histogram bins per channel
-        hist_r = cv2.calcHist([img_resized], [0], None, [256], [0, 256]).flatten()
-        hist_g = cv2.calcHist([img_resized], [1], None, [256], [0, 256]).flatten()
-        hist_b = cv2.calcHist([img_resized], [2], None, [256], [0, 256]).flatten()
+        # Try to match on 'file_name' or 'filename'
+        candidates = []
+        if "file_name" in df.columns:
+            candidates.append(df["file_name"] == basename)
+        if "filename" in df.columns:
+            candidates.append(df["filename"] == basename)
 
-        features = np.concatenate([hist_r, hist_g, hist_b])
-        features = features / (np.sum(features) + 1e-7)
+        if not candidates:
+            print("No 'file_name' or 'filename' column found in image_features.csv")
+            return None
 
-        # Pad or trim to match model dimension
-        required_dim = models["face"].n_features_in_
+        mask = candidates[0]
+        for extra in candidates[1:]:
+            mask |= extra
 
-        if len(features) < required_dim:
-            features = np.pad(features, (0, required_dim - len(features)), constant_values=0)
-        elif len(features) > required_dim:
-            features = features[:required_dim]
+        row = df[mask]
 
-        print(f"Face features extracted: {len(features)} dims (expected {required_dim})")
+        if row.empty:
+            print(f" No feature row found for image file: {basename}")
+            print("   Make sure you're using one of the training images.")
+            return None
+
+        # Drop the same non-feature columns as in train_face_model.py
+        possible_targets = ["member_name", "member", "label", "person", "user"]
+        target_col = None
+        for col in possible_targets:
+            if col in df.columns:
+                target_col = col
+                break
+
+        cols_to_drop = [
+            target_col,
+            "filename",
+            "file_name",
+            "image_path",
+            "expression",
+            "folder",
+        ]
+
+        feature_row = row.drop(
+            columns=[c for c in cols_to_drop if c in row.columns],
+            errors="ignore",
+        )
+
+        # Keep only numeric columns (same as training)
+        feature_row = feature_row.select_dtypes(include=[np.number])
+
+        features = feature_row.iloc[0].values
+        print(f" Face features loaded from CSV for {basename}: {features.shape[0]} dimensions")
         return features
 
     except Exception as e:
-        print(f" Face extraction failed: {e}")
+        print(f" Error looking up face features: {e}")
         return None
+
 
 
 def extract_voice_features_from_file(audio_path):
-    """Extract MFCC + spectral features."""
+   
     try:
-        y, sr = librosa.load(audio_path, sr=22050)
+        df = pd.read_csv("Audio_Processing/audio_features.csv")
 
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        mfccs_mean = np.mean(mfccs, axis=1)
+        # get base file name, e.g. "Tracy_yes, approve.wav"
+        basename = os.path.basename(audio_path)
 
-        rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
-        centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
-        rms = np.mean(librosa.feature.rms(y=y))
+        # Try matching on common filename columns
+        candidates = []
+        if "file_name" in df.columns:
+            candidates.append(df["file_name"] == basename)
+        if "filename" in df.columns:
+            candidates.append(df["filename"] == basename)
 
-        features = np.concatenate([mfccs_mean, [rolloff, centroid, rms]])
+        if not candidates:
+            print(" No 'file_name' or 'filename' column in audio_features.csv")
+            return None
 
-        print(f"Voice features extracted: {len(features)} dimensions")
+        mask = candidates[0]
+        for extra in candidates[1:]:
+            mask |= extra
+
+        row = df[mask]
+
+        if row.empty:
+            print(f" No feature row found for audio file: {basename}")
+            print("   Make sure you're using one of the training audio files.")
+            return None
+
+        # Detect target column (speaker label)
+        possible_targets = ["speaker", "member_name", "member", "label", "user", "person"]
+        target_col = None
+        for col in possible_targets:
+            if col in df.columns:
+                target_col = col
+                break
+
+        cols_to_drop = [
+            target_col,
+            "file_name",
+            "filename",
+            "file_path",
+            "audio_path",
+            "phrase",
+            "is_authorized",
+        ]
+
+        feature_row = row.drop(
+            columns=[c for c in cols_to_drop if c in row.columns],
+            errors="ignore",
+        )
+
+        # Keep only numeric columns (same as in train_voice_model.py)
+        feature_row = feature_row.select_dtypes(include=[np.number])
+
+        features = feature_row.iloc[0].values
+        print(f" Voice features loaded from CSV for {basename}: {features.shape[0]} dimensions")
         return features
 
     except Exception as e:
-        print(f" Voice extraction failed: {e}")
+        print(f" Error looking up voice features: {e}")
         return None
+
 
 
 # AUTHENTICATION LOGIC
@@ -224,17 +311,39 @@ def run_interactive(models):
             continue
 
         print("\nExtracting features...")
-        face_f = extract_face_features_from_file(img_path, models)
+        face_f = extract_face_features_from_file(img_path)
         voice_f = extract_voice_features_from_file(audio_path)
 
         if face_f is None or voice_f is None:
             print(" Error in input files. Try again.")
             continue
 
+                # Build customer feature vector in the SAME way as product model training
         customer_row = df[df["customer_id_common"] == customer_id]
-        customer_features = (
-            customer_row.select_dtypes(include=[np.number]).iloc[0].values
+
+        if customer_row.empty:
+            print(f"⚠ Customer ID {customer_id} not found. Using first row as fallback.")
+            customer_row = df.iloc[[0]]
+
+        # Drop the same columns as in the product training script
+        cols_to_drop = [
+            "customer_id_common",
+            "customer_id_legacy",
+            "customer_id_new",
+            "product_category",
+        ]
+
+        customer_features_row = customer_row.drop(
+            columns=[c for c in cols_to_drop if c in customer_row.columns],
+            errors="ignore",
         )
+
+        # Keep only numeric columns (this should give 6 features)
+        customer_features_row = customer_features_row.select_dtypes(include=[np.number])
+
+        customer_features = customer_features_row.iloc[0].values
+        print(f" Customer feature vector built with {customer_features.shape[0]} dimensions")
+
 
         result = run_authentication(face_f, voice_f, customer_features, models)
 
