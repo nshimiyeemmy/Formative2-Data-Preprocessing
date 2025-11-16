@@ -26,7 +26,6 @@ Two datasets are used:
 ✔ Output: **merged_customer_data.csv**
 
 
-
 #  Image Data Collection & Processing
 
 Each member submits **3 face images**:
